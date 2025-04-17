@@ -1,0 +1,7 @@
+.mypy_cache 
+.venv
+data
+__pycache__
+logs/
+wandb/
+models/checkpoints
