@@ -17,8 +17,9 @@ class Logger:
     ) -> None:
         os.makedirs(log_dir, exist_ok=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
+        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
+        log_file = os.path.join(log_dir, f"{name}.log")
         
         # Create logger
         self.logger = logging.getLogger(name)
@@ -44,7 +45,7 @@ class Logger:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(console_level)
         console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+        # self.logger.addHandler(console_handler)
     
     def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
         self.logger.debug(msg, *args, **kwargs)
