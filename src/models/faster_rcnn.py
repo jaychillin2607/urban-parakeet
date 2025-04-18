@@ -15,12 +15,12 @@ logger = get_logger("faster_rcnn")
 
 @exception_handler
 def create_faster_rcnn_model(
-    num_classes: int = 3, 
+num_classes: int = 4,  # Updated for background + 3 classes 
     backbone: str = "resnet50",
     pretrained: bool = True,
     pretrained_backbone: bool = True,
     trainable_backbone_layers: int = 5,
-    box_score_thresh: float = 0.5,
+    box_score_thresh: float = 0.05,  # Lowered from 0.5 to 0.05
     box_nms_thresh: float = 0.3,
     box_detections_per_img: int = 100
 ) -> FasterRCNN:

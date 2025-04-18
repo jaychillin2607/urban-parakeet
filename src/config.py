@@ -14,10 +14,11 @@ class DataConfig:
     
     # Class mapping - using default_factory to fix mutable default issue
     class_map: Dict[str, int] = field(default_factory=lambda: {
-        "other": 0,
-        "lenin": 1,
-        "ataturk": 2
-    })
+    "background": 0,  # Add explicit background class
+    "other": 1,       # Shift all classes up by 1
+    "lenin": 2,
+    "ataturk": 3
+})
     
     def __post_init__(self):
         # Initialize path fields after the basic fields are set
@@ -45,11 +46,11 @@ class ModelConfig:
     backbone: str = "resnet50"
     pretrained: bool = True
     pretrained_weights: str = "COCO"
-    num_classes: int = 3  # Background is handled automatically by Faster R-CNN
+    num_classes: int = 4  # Background is handled automatically by Faster R-CNN
     checkpoint_dir: str = "models/checkpoints"
     
     # Model hyperparameters
-    box_score_thresh: float = 0.5
+    box_score_thresh: float = 0.05
     box_nms_thresh: float = 0.3
     box_detections_per_img: int = 100
 

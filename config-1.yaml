@@ -9,9 +9,10 @@ data:
   val_split: 0.1
   test_split: 0.1
   class_map:
-    other: 0
-    lenin: 1
-    ataturk: 2
+    background: 0
+    other: 1
+    lenin: 2
+    ataturk: 3
 
 # Model Configuration
 model:
@@ -19,7 +20,7 @@ model:
   pretrained: true
   num_classes: 3
   checkpoint_dir: "models/checkpoints"
-  box_score_thresh: 0.5
+  box_score_thresh: 0.05
   box_nms_thresh: 0.3
   box_detections_per_img: 100
 

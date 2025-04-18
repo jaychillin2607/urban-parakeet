@@ -147,17 +147,20 @@ def process_predictions(
             results.append(result)
             continue
         
+        other_class = 1
+        lenin_class = 2    # Lenin's internal class ID
+        ataturk_class = 3 
         # Check if Lenin or Ataturk is detected
         lenin_boxes = []
         ataturk_boxes = []
         other_boxes = []
         
         for box, score, label in zip(boxes, scores, labels):
-            if label == 1:  # Lenin
+            if label == lenin_class:  # Lenin
                 lenin_boxes.append((box, score))
-            elif label == 2:  # Ataturk
+            elif label == ataturk_class:  # Ataturk
                 ataturk_boxes.append((box, score))
-            else:  # Other
+            elif label == other_class:  # Other
                 other_boxes.append((box, score))
         
         # Follow the rule:
@@ -170,11 +173,11 @@ def process_predictions(
         # First priority: Lenin
         if len(lenin_boxes) == 1:
             selected_box, _ = lenin_boxes[0]
-            selected_label = 1
+            selected_label = lenin_class
         # Second priority: Ataturk
         elif len(ataturk_boxes) == 1:
             selected_box, _ = ataturk_boxes[0]
-            selected_label = 2
+            selected_label = ataturk_class
         # If multiple Lenin or Ataturk or only other, select largest
         else:
             all_boxes = lenin_boxes + ataturk_boxes + other_boxes
@@ -195,11 +198,11 @@ def process_predictions(
                 
                 # Determine label
                 if largest_idx < len(lenin_boxes):
-                    selected_label = 1
+                    selected_label = lenin_class
                 elif largest_idx < len(lenin_boxes) + len(ataturk_boxes):
-                    selected_label = 2
+                    selected_label = ataturk_class
                 else:
-                    selected_label = 0
+                    selected_label = other_class
         
         # If still no box found (shouldn't happen), use default
         if selected_box is None:

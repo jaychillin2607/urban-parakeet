@@ -258,7 +258,7 @@ def validate(
     processed_batches = 0
     
     # Class-wise metrics
-    class_detections = {0: 0, 1: 0, 2: 0}  # Other, Lenin, Ataturk
+    class_detections = {1: 0, 2: 0, 3: 0}  # Other, Lenin, Ataturk
     
     # Create progress bar
     pbar = tqdm(data_loader, desc=f"Validation", leave=True, position=0)
@@ -325,7 +325,7 @@ def validate(
     logger.info(f"  Processed batches: {processed_batches}/{len(data_loader)}")
     logger.info(f"  Total detections: {total_detections} (avg: {avg_detections:.2f} per batch)")
     logger.info(f"  Average confidence: {avg_confidence:.4f}")
-    logger.info(f"  Class distribution: Other: {class_detections[0]}, Lenin: {class_detections[1]}, Ataturk: {class_detections[2]}")
+    logger.info(f"  Class distribution: Other: {class_detections[1]}, Lenin: {class_detections[2]}, Ataturk: {class_detections[3]}")
     
     # Log to wandb
     if config.train.use_wandb:
@@ -333,9 +333,9 @@ def validate(
             "val_avg_confidence": avg_confidence,
             "val_total_detections": total_detections,
             "val_avg_detections": avg_detections,
-            "val_other_detections": class_detections[0],
-            "val_lenin_detections": class_detections[1],
-            "val_ataturk_detections": class_detections[2],
+            "val_other_detections": class_detections[1],
+            "val_lenin_detections": class_detections[2],
+            "val_ataturk_detections": class_detections[3],
             "epoch": epoch
         })
     
@@ -372,6 +372,35 @@ def train_model(
     Returns:
         Trained model
     """
+    # Memory optimization for limited GPU memory
+    if device == "cuda":
+        # Empty GPU cache
+        torch.cuda.empty_cache()
+        
+        # Set PyTorch to optimize for memory rather than speed
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = False
+            
+            # For smaller GPUs (6GB), enable gradient checkpointing if using ResNet50 or larger
+            if hasattr(model.backbone, "body") and config.model.backbone in ["resnet50", "resnet101", "resnet152"]:
+                model.backbone.body.requires_grad_(True)
+                model.backbone.body.conv1.requires_grad_(True)
+                # Enable gradient checkpointing on the backbone to save memory
+                model.backbone.body.layer1.apply(lambda m: m.requires_grad_(True))
+                model.backbone.body.layer2.apply(lambda m: m.requires_grad_(True))
+                model.backbone.body.layer3.apply(lambda m: m.requires_grad_(True))
+                model.backbone.body.layer4.apply(lambda m: m.requires_grad_(True))
+                
+                # Turn on gradient checkpointing
+                try:
+                    model.backbone.body.layer1.apply(lambda m: m._set_gradient_checkpointing(True))
+                    model.backbone.body.layer2.apply(lambda m: m._set_gradient_checkpointing(True))
+                    model.backbone.body.layer3.apply(lambda m: m._set_gradient_checkpointing(True))
+                    model.backbone.body.layer4.apply(lambda m: m._set_gradient_checkpointing(True))
+                    logger.info("Enabled gradient checkpointing to save memory")
+                except Exception as e:
+                    logger.warning(f"Failed to enable gradient checkpointing: {e}")
+                    
     # Initialize wandb if enabled
     if config.train.use_wandb:
         wandb.init(
@@ -406,7 +435,7 @@ def train_model(
     )
     
     # Create early stopping
-    early_stopping = EarlyStopping(patience=early_stopping_patience)
+    # early_stopping = EarlyStopping(patience=early_stopping_patience)
     
     # Create checkpoint directory
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -484,9 +513,9 @@ def train_model(
         
         # Check early stopping
         # For confidence, we need to negate it since EarlyStopping expects decreasing metric
-        if early_stopping(-val_metric):
-            logger.info(f"Early stopping triggered after {epoch+1} epochs")
-            break
+        # if early_stopping(-val_metric):
+        #     logger.info(f"Early stopping triggered after {epoch+1} epochs")
+        #     break
     
     # Finish wandb
     if config.train.use_wandb:

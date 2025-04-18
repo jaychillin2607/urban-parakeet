@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 import yaml
 
-async def read_csv_async(filepath: str) -> pd.DataFrame:
+async def read_csv_async(filepath: str, has_header: bool = True) -> pd.DataFrame:
     """
     Asynchronously read a CSV file and return a pandas DataFrame
     
@@ -25,9 +25,10 @@ async def read_csv_async(filepath: str) -> pd.DataFrame:
             content = await f.read()
         
         # Process the CSV content
+        # header = 0 if has_header else None
         return pd.read_csv(
             io.StringIO(content), 
-            dtype={'filename': str}
+            dtype={'filename': str} if has_header else None
         )
     except Exception as e:
         raise IOError(f"Error reading CSV file {filepath}: {str(e)}")
