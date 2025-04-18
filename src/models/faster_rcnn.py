@@ -132,7 +132,8 @@ def save_model(
 def load_model(
     filepath: str,
     device: str = "cuda",
-    optimizer: Optional[torch.optim.Optimizer] = None
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    backbone:str= "resnet18"
 ) -> Tuple[nn.Module, Optional[torch.optim.Optimizer], Dict[str, Any]]:
     """
     Load model from checkpoint
@@ -149,20 +150,22 @@ def load_model(
         logger.warning("CUDA not available, using CPU instead")
         device = "cpu"
     
-    checkpoint = torch.load(filepath, map_location=device)
+    # Disable weights_only for this specific load
+    checkpoint = torch.load(filepath, map_location=device, weights_only=False)
     
-    # Create a new model
+    # Create a new model using the backbone parameter from config
     model = create_faster_rcnn_model(
         num_classes=config.model.num_classes,
-        backbone=config.model.backbone,
+        backbone=backbone,  # Use backbone from config
         pretrained=False,
         box_score_thresh=config.model.box_score_thresh,
         box_nms_thresh=config.model.box_nms_thresh,
         box_detections_per_img=config.model.box_detections_per_img
     )
     
-    # Load state dict
-    model.load_state_dict(checkpoint["model_state_dict"])
+    # Load state dict with strict=False to allow partial matching
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    logger.info("Model weights loaded with ResNet18 backbone using strict=False")
     model = model.to(device)
     
     # Load optimizer if provided

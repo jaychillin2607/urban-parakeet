@@ -45,7 +45,7 @@ async def predict_image(
     model: torch.nn.Module,
     image_path: str,
     device: str,
-    score_threshold: float = 0.5
+    score_threshold: float = 0.01  # Lower threshold to capture more detections
 ) -> Dict[str, Any]:
     """
     Make predictions on a single image
@@ -82,6 +82,12 @@ async def predict_image(
         with torch.no_grad():
             prediction = model([image_tensor])[0]
         
+        # Log raw prediction for debugging
+        logger.debug(f"Raw prediction for {filename}:")
+        logger.debug(f"  Boxes: {prediction['boxes'].shape}")
+        logger.debug(f"  Scores: {prediction['scores']}")
+        logger.debug(f"  Labels: {prediction['labels']}")
+        
         # Get boxes, scores, and labels
         boxes = prediction["boxes"].cpu().numpy()
         scores = prediction["scores"].cpu().numpy()
@@ -92,6 +98,8 @@ async def predict_image(
         boxes = boxes[mask]
         scores = scores[mask]
         labels = labels[mask]
+        
+        logger.info(f"Found {len(boxes)} detections with score >= {score_threshold} for {filename}")
         
         return {
             "filename": filename,
@@ -128,6 +136,11 @@ def process_predictions(
     """
     results = []
     
+    # Log overall detection statistics
+    total_images = len(predictions)
+    images_with_detections = sum(1 for pred in predictions if len(pred["boxes"]) > 0)
+    logger.info(f"Processing {total_images} images, {images_with_detections} with detections")
+    
     for pred in predictions:
         filename = pred["filename"]
         boxes = pred["boxes"]
@@ -147,46 +160,78 @@ def process_predictions(
             results.append(result)
             continue
         
-        other_class = 1
-        lenin_class = 2    # Lenin's internal class ID
-        ataturk_class = 3 
+        # Our internal class IDs based on config.data.class_map
+        # {
+        #   "background": 0,  # Add explicit background class
+        #   "other": 1,       # Shift all classes up by 1
+        #   "lenin": 2,
+        #   "ataturk": 3
+        # }
+        
+        # Output format: class is 0 for other, 1 for Lenin, 2 for Ataturk
+        other_internal_id = 1    # Maps to 0 in output
+        lenin_internal_id = 2    # Maps to 1 in output
+        ataturk_internal_id = 3  # Maps to 2 in output
+        
+        # Convert internal class IDs to output format
+        output_class_map = {
+            other_internal_id: 0,    # Other -> 0
+            lenin_internal_id: 1,    # Lenin -> 1
+            ataturk_internal_id: 2   # Ataturk -> 2
+        }
+        
         # Check if Lenin or Ataturk is detected
         lenin_boxes = []
         ataturk_boxes = []
         other_boxes = []
         
         for box, score, label in zip(boxes, scores, labels):
-            if label == lenin_class:  # Lenin
+            if label == lenin_internal_id:
                 lenin_boxes.append((box, score))
-            elif label == ataturk_class:  # Ataturk
+            elif label == ataturk_internal_id:
                 ataturk_boxes.append((box, score))
-            elif label == other_class:  # Other
+            elif label == other_internal_id:
                 other_boxes.append((box, score))
         
+        # Debug info
+        logger.debug(f"{filename}: Found {len(lenin_boxes)} Lenin, {len(ataturk_boxes)} Ataturk, {len(other_boxes)} Other statues")
+        
         # Follow the rule:
-        # If there are multiple heads, print only the coordinates of Lenin's or Ataturk's head;
-        # if there are none or more than one, print the coordinates of the largest bounding box.
+        # If there are multiple heads, print only coordinates of Lenin's or Ataturk's head;
+        # if there are none or more than one, print coordinates of the largest bounding box.
         
         selected_box = None
-        selected_label = 0
+        selected_label = 0  # Default to "other" (0 in output format)
         
         # First priority: Lenin
         if len(lenin_boxes) == 1:
             selected_box, _ = lenin_boxes[0]
-            selected_label = lenin_class
+            selected_label = output_class_map[lenin_internal_id]  # 1
+            logger.debug(f"{filename}: Selected single Lenin statue")
         # Second priority: Ataturk
         elif len(ataturk_boxes) == 1:
             selected_box, _ = ataturk_boxes[0]
-            selected_label = ataturk_class
+            selected_label = output_class_map[ataturk_internal_id]  # 2
+            logger.debug(f"{filename}: Selected single Ataturk statue")
         # If multiple Lenin or Ataturk or only other, select largest
         else:
-            all_boxes = lenin_boxes + ataturk_boxes + other_boxes
+            all_boxes = []
+            # Add Lenin boxes with their class
+            for box, score in lenin_boxes:
+                all_boxes.append((box, score, lenin_internal_id))
+            # Add Ataturk boxes with their class
+            for box, score in ataturk_boxes:
+                all_boxes.append((box, score, ataturk_internal_id))
+            # Add Other boxes with their class
+            for box, score in other_boxes:
+                all_boxes.append((box, score, other_internal_id))
+            
             if all_boxes:
                 # Find largest box by area
                 largest_area = 0
                 largest_idx = 0
                 
-                for i, (box, _) in enumerate(all_boxes):
+                for i, (box, _, _) in enumerate(all_boxes):
                     x1, y1, x2, y2 = box
                     area = (x2 - x1) * (y2 - y1)
                     
@@ -194,15 +239,9 @@ def process_predictions(
                         largest_area = area
                         largest_idx = i
                 
-                selected_box, _ = all_boxes[largest_idx]
-                
-                # Determine label
-                if largest_idx < len(lenin_boxes):
-                    selected_label = lenin_class
-                elif largest_idx < len(lenin_boxes) + len(ataturk_boxes):
-                    selected_label = ataturk_class
-                else:
-                    selected_label = other_class
+                selected_box, _, selected_class = all_boxes[largest_idx]
+                selected_label = output_class_map[selected_class]
+                logger.debug(f"{filename}: Selected largest box with class {selected_label}")
         
         # If still no box found (shouldn't happen), use default
         if selected_box is None:

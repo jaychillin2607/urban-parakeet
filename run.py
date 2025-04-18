@@ -60,6 +60,8 @@ def parse_args():
                                 help="Device to use (cuda or cpu)")
     inference_parser.add_argument("--threshold", type=float, default=config.model.box_score_thresh,
                                 help="Score threshold for detections")
+    inference_parser.add_argument("--backbone", type=str, default=config.model.backbone,
+                            help="Backbone model (resnet18, resnet34, resnet50, resnet101)")
     
     # Visualize command
     visualize_parser = subparsers.add_parser("visualize", help="Visualize detection results")
@@ -172,7 +174,7 @@ async def run_inference(args):
     
     # Load model
     logger.info(f"Loading model from checkpoint: {args.checkpoint}")
-    model, _, _ = load_model(args.checkpoint, config.inference.device)
+    model, _, _ = load_model(args.checkpoint, config.inference.device,backbone=args.backbone )
     
     # Create output directory
     os.makedirs(os.path.dirname(config.data.results_file), exist_ok=True)
